@@ -10,9 +10,9 @@ import System.IO hiding (readFile)
 
 import VFS
 
-mainGetVFS = do
-    myFile <- readFile "Scripts.vfs"
-    fromMaybe (return ()) (sequence_ . (map $ putStrLn . show) . snd <$> (runGet getVFS myFile))
-    
+printFiles :: ByteString -> IO ()
+printFiles = (fromMaybe $ return ()) . (fmap $ sequence_ . (map $ putStrLn . show) . snd) . (runGet getVFS)
+
+mainGetVFS = readFile "Scripts.vfs" >>= printFiles
 
 main = mainGetVFS
