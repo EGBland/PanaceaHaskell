@@ -1,5 +1,5 @@
 module VFS (
-    FileHeader, DirHeader, testHeader, getVFS
+    FileHeader, RootDirHeader, SubDirHeader, getVFS
 )
 where
 
@@ -8,7 +8,9 @@ import Data.Binary.Get (getByteString, getWord8, getWord32le, getWord64le)
 import Data.Binary.Put (putWord32le, putWord64le)
 import Data.ByteString.UTF8 (toString)
 import Data.Word
+import Text.Printf (printf)
 
+-- put & get functions for strings that use Word8 instead of Word64be for length
 putVFSStr :: String -> Put
 putVFSStr str = do
     put (fromIntegral . length $ str :: Word8)
@@ -20,16 +22,32 @@ getVFSStr = do
     str <- getByteString $ fromEnum strlen
     return . toString $ str
 
+
+-- Datatypes for headers present in VFS files
 data FileHeader = FileHeader {
     filename  :: !String,
     filesize  :: !Word32,
     offset    :: !Word32,
     timestamp :: !Word64
-    } deriving (Show)
+    }
 
+instance Show FileHeader where
+    show (FileHeader name size offset timestamp) =
+        let
+            sizeKb = fromIntegral size / 1024 :: Float
+        in
+            printf "%s\t%.2fKB\t%d\t%d" name sizeKb offset timestamp
+
+data RootDirHeader = RootDirHeader !Word32 !Word32
+    deriving (Show)
+data SubDirHeader  = SubDirHeader  !String !Word32 !Word32
+    deriving (Show)
+
+
+-- Binary instances for VFS headers
 instance Binary FileHeader where
     put (FileHeader name size off time) = do
-        putVFSStr name
+        putVFSStr   name
         putWord32le size
         putWord32le off
         putWord64le time
@@ -41,44 +59,50 @@ instance Binary FileHeader where
         time <- getWord64le
         return (FileHeader name size off time)
 
-data DirHeader = RootDirHeader Word32 Word32 | SubDirHeader {
-    dirname   :: !String,
-    subdir_ct :: !Word32,
-    file_ct   :: !Word32
-    } deriving (Show)
-
-instance Binary DirHeader where
-    put (RootDirHeader sdct fct) = do
-        putWord32le 0x4331504C
-        putWord32le sdct
-        putWord32le fct
-    put (SubDirHeader name sdct fct) = do
-        putVFSStr name
-        putWord32le sdct
-        putWord32le fct
+instance Binary SubDirHeader where
+    put (SubDirHeader name subdir_ct file_ct) = do
+        putVFSStr    name
+        putWord32le subdir_ct
+        putWord32le file_ct
     
     get = do
-        name <- getVFSStr
-        sdct <- getWord32le
-        fct <- getWord32le
-        return (SubDirHeader name sdct fct)
+        name      <- getVFSStr
+        subdir_ct <- getWord32le
+        file_ct   <- getWord32le
+        return (SubDirHeader name subdir_ct file_ct)
 
-type VFS = [(DirHeader,[FileHeader])]
-getVFS :: Get (Either String VFS)
+instance Binary RootDirHeader where
+    put (RootDirHeader subdir_ct file_ct) = do
+        putWord32le 0x4331504C -- magic number
+        putWord32le subdir_ct
+        putWord32le file_ct
+
+    get = do
+        magic_number <- getWord32le
+        checkMagicNumber magic_number
+
+checkMagicNumber :: Word32 -> Get RootDirHeader
+checkMagicNumber 0x4331504C = do
+    subdir_ct <- getWord32le
+    file_ct   <- getWord32le
+    return $ RootDirHeader subdir_ct file_ct
+checkMagicNumber _ = error "wrong magic number"
+
+
+-- the VFS type
+type VFS = (RootDirHeader,[FileHeader])
+getVFS :: Get (Maybe VFS)
 getVFS = do
     magic_number <- getWord32le :: Get Word32
     getVFS' magic_number
 
-getVFS' :: Word32 -> Get (Either String VFS)
+getVFS' :: Word32 -> Get (Maybe VFS)
 getVFS' 0x4331504C = do
-    dir_count  <- getWord32le
-    file_count <- getWord32le
-    let fileGets = foldr (\_ acc -> (get :: Get FileHeader):acc) [] [1..file_count]
+    subdir_ct <- getWord32le
+    file_ct   <- getWord32le
+    let fileGets = foldr (\_ acc -> (get :: Get FileHeader):acc) [] [1..file_ct]
     files <- sequence fileGets
-    return $ Right [(testHeader, files)]
-getVFS' _ = return $ Left "wrong magic number"
+    return $ Just (RootDirHeader subdir_ct file_ct,files)
+getVFS' _ = return Nothing
 
 --getFiles :: Word32 -> Get [FileHeader]
-
-
-testHeader = SubDirHeader "Hello" 0 1
