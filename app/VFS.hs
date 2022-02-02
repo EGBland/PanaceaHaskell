@@ -38,10 +38,15 @@ instance Show FileHeader where
         in
             printf "%s\t%.2fKB\t%d\t%d" name sizeKb offset timestamp
 
-data RootDirHeader = RootDirHeader !Word32 !Word32
-    deriving (Show)
-data SubDirHeader  = SubDirHeader  !String !Word32 !Word32
-    deriving (Show)
+data RootDirHeader = RootDirHeader {
+        rd_subdir_ct :: !Word32,
+        rd_file_ct   :: !Word32
+    } deriving (Show)
+data SubDirHeader  = SubDirHeader {
+        sd_name      :: !String,
+        sd_subdir_ct :: !Word32,
+        sd_file_ct   :: !Word32
+    } deriving (Show)
 
 
 -- Binary instances for VFS headers
@@ -101,8 +106,18 @@ getVFS' 0x4331504C = do
     subdir_ct <- getWord32le
     file_ct   <- getWord32le
     let fileGets = foldr (\_ acc -> (get :: Get FileHeader):acc) [] [1..file_ct]
+    
     files <- sequence fileGets
     return $ Just (RootDirHeader subdir_ct file_ct,files)
 getVFS' _ = return Nothing
+
+getSubDir :: Get (SubDirHeader,[FileHeader])
+getSubDir = do
+    subdir_header <- get :: Get SubDirHeader
+    files <- getFiles $ sd_file_ct subdir_header
+    return (subdir_header, files)
+
+getFiles :: Word32 -> Get [FileHeader]
+getFiles n = sequence [get :: Get FileHeader | x <- [1..n]]
 
 --getFiles :: Word32 -> Get [FileHeader]
