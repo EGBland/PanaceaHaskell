@@ -70,6 +70,16 @@ getRootDir' 0x4331504C = do
 --    let files = [getFile :: x <- [1..file_ct]]
 --    let vfs = foldr1 vfsFoldFunc 
 
+getSubDir' :: Get (Header,VFS)
+getSubDir' = do
+    name      <- getVFSStr
+    subdir_ct <- getWord32le
+    file_ct   <- getWord32le
+
+    files <- sequence [getFile | x <- [1..file_ct]]
+    let vfs = foldr vfsFoldFunc Tip files
+    return (SubDirHeader name subdir_ct file_ct, vfs)
+
 vfsFoldFunc :: VFS -> VFS -> VFS
 vfsFoldFunc (Branch left h1 _) h2 = Branch left h1 h2
 
