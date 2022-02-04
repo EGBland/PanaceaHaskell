@@ -8,11 +8,17 @@ import Data.ByteString.Lazy (ByteString, readFile, hPut)
 import Data.Maybe (fromMaybe)
 import System.IO hiding (readFile)
 
-import VFS
+import qualified VFS as V
+import qualified VFSTree as VT
 
-printFiles :: ByteString -> IO ()
-printFiles = (fromMaybe $ return ()) . (fmap $ sequence_ . (map $ putStrLn . show) . snd) . (runGet getVFS)
 
-mainGetVFS = readFile "Scripts.vfs" >>= printFiles
+printFilesV :: ByteString -> IO ()
+printFilesV = (fromMaybe $ return ()) . (fmap $ sequence_ . (map $ putStrLn . show) . snd) . (runGet V.getVFS)
 
-main = mainGetVFS
+--printFilesVT :: ByteString -> VT.VFS
+printFilesVT = sequence_ . (map $ putStrLn . show) . VT.flattenVFS . (runGet VT.getVFS)
+
+mainGetV = readFile "Scenes.vfs" >>= printFilesV
+mainGetVT = readFile "Scenes.vfs" >>= printFilesVT
+
+main = mainGetVT
