@@ -1,13 +1,14 @@
 module VFSTree (
-
+    VFS
 )
 where
 
-import Data.Word
 import Data.Binary (get, put)
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString.UTF8 (toString)
+import Data.Foldable (foldrM)
+import Data.Word
 
 
 putVFSStr :: String -> Put
@@ -47,14 +48,14 @@ isDir = not . isFile
 
 type VFS = Node Header
 
---getVFS :: Get (Maybe VFS)
+--getVFS :: Get VFS
 --getVFS = do
---    root_dir <- getRootDir
+    
 
-getRootDir :: Get Header
+getRootDir :: Get VFS
 getRootDir = do
-    magic_number <- getWord32le
-    getRootDir' magic_number
+    header <- (getWord32le >>= getRootDir')
+    return Tip
 
 getRootDir' :: Word32 -> Get Header
 getRootDir' 0x4331504C = do
@@ -62,23 +63,15 @@ getRootDir' 0x4331504C = do
     file_ct   <- getWord32le
     return (RootDirHeader subdir_ct file_ct)
 
---getSubDir :: VFS -> Get VFS
---getSubDir parent = do
---    name      <- getVFSStr
---    subdir_ct <- getWord32le
---    file_ct   <- getWord32le
---    let files = [getFile :: x <- [1..file_ct]]
---    let vfs = foldr1 vfsFoldFunc 
-
-getSubDir' :: Get (Header,VFS)
-getSubDir' = do
+getSubDir :: VFS -> Get VFS
+getSubDir (Branch _ parent pr) = do
     name      <- getVFSStr
     subdir_ct <- getWord32le
     file_ct   <- getWord32le
-
     files <- sequence [getFile | x <- [1..file_ct]]
-    let vfs = foldr vfsFoldFunc Tip files
-    return (SubDirHeader name subdir_ct file_ct, vfs)
+    dirs <- foldrM (\_ vfs -> getSubDir vfs) Tip [1..subdir_ct]
+    let vfs = foldr vfsFoldFunc dirs files
+    return (Branch vfs parent pr)
 
 vfsFoldFunc :: VFS -> VFS -> VFS
 vfsFoldFunc (Branch left h1 _) h2 = Branch left h1 h2
