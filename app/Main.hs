@@ -1,12 +1,13 @@
 module Main where
 
-import Prelude hiding (readFile)
+import Prelude hiding (readFile, writeFile)
 import Control.Monad (when)
 import Data.Binary (decode, encode)
 import Data.Binary.Get (runGet)
+import Data.ByteString (writeFile)
 import Data.ByteString.Lazy (ByteString, readFile, hPut)
 import Data.Maybe (fromMaybe)
-import System.IO hiding (readFile)
+import System.IO hiding (readFile, writeFile)
 
 import qualified VFS as V
 import qualified VFSTree as VT
@@ -27,6 +28,16 @@ mainGetFile = do
     theData <- readFile test_vfs
     let theVFS = runGet VT.getVFS theData
     let files = VT.flattenVFS theVFS
-    putStrLn "hello"
+    let myFile = head . (filter $ VT.namePred "ui_bint.png") $ files
+    let fileData = runGet (VT.getFileData myFile) theData
+    writeFile (VT.getName myFile) fileData
+    putStrLn . show $ myFile
 
-main = mainGetVT
+mainResolveFile :: IO ()
+mainResolveFile = do
+    theData <- readFile test_vfs
+    let theVFS = runGet VT.getVFS theData
+    let theFile = runGet (VT.getFileFromPath "UI/ui_bint.png" theVFS) theData
+    putStrLn . show $ theFile
+
+main = mainResolveFile

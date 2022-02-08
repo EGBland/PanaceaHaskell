@@ -1,6 +1,7 @@
 module VFSTree (
     VFS, getVFS, getNodeValue, flattenVFS,
-    Header, namePred
+    Header, namePred, getFileData, getFileFromPath,
+    getName
 )
 where
 
@@ -10,7 +11,16 @@ import Data.Binary.Put
 import Data.ByteString (ByteString)
 import Data.ByteString.UTF8 (toString)
 import Data.Foldable (foldrM)
+import Data.Maybe (fromJust, isNothing)
 import Data.Word
+
+split :: (Eq a) => a -> [a] -> [[a]]
+split _ [] = []
+split c s
+    | head s == c = split c $ tail s
+    | otherwise = (split c sNext)++[sBefore]
+    where sBefore = takeWhile (/=c) s
+          sNext = drop (length sBefore) s
 
 -- put and get words with 8 bit length
 putVFSStr :: String -> Put
@@ -55,6 +65,21 @@ flatten root = foldr (:) [] root
 
 nodeJoin :: Node a -> Node a -> Node a
 nodeJoin (Branch left a1 _) n2 = Branch left a1 n2
+
+resolve :: (Eq a) => [a] -> Node a -> Maybe (Node a)
+resolve = resolveBy (==)
+
+resolveBy :: (a -> b -> Bool) -> [a] -> Node b -> Maybe (Node b)
+resolveBy _ _ Tip = Nothing
+resolveBy _ [] root = Just root
+resolveBy rf path root
+    | rf (head path) (getNodeValue root) = resolveBy rf (tail path) (getChild root)
+    | otherwise = resolveBy rf path $ getSibling root
+    where
+        getChild :: Node b -> Node b
+        getChild (Branch child _ _) = child
+        getSibling :: Node b -> Node b
+        getSibling (Branch _ _ sib) = sib
 
 -- individual header type
 data Header =
@@ -144,8 +169,18 @@ fpred _ = False
 flattenVFS :: VFS -> [Header]
 flattenVFS = flatten
 
-readFile :: Header -> Get ByteString
-readFile (FileHeader _ size offset _) = do
+pathResolver :: String -> Header -> Bool
+pathResolver name = (==name) . getName
+
+getFileFromPath :: String -> VFS -> Get ByteString
+getFileFromPath path root
+    | isNothing resolved = error "oh bugger"
+    | otherwise = getFileData . getNodeValue . fromJust $ resolved
+    where pathSegments = split '/' path
+          resolved     = resolveBy pathResolver pathSegments root
+
+getFileData :: Header -> Get ByteString
+getFileData (FileHeader _ size offset _) = do
     beforeFile <- getByteString $ fromEnum offset
     file <- getByteString $ fromEnum size
     return file
