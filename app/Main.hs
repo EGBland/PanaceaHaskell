@@ -18,7 +18,15 @@ printFilesV = (fromMaybe $ return ()) . (fmap $ sequence_ . (map $ putStrLn . sh
 --printFilesVT :: ByteString -> VT.VFS
 printFilesVT = sequence_ . (map $ putStrLn . show) . VT.flattenVFS . (runGet VT.getVFS)
 
-mainGetV = readFile "Scenes.vfs" >>= printFilesV
-mainGetVT = readFile "Scenes.vfs" >>= printFilesVT
+test_vfs = "Textures.vfs"
+mainGetV = readFile test_vfs >>= printFilesV
+mainGetVT = readFile test_vfs >>= printFilesVT
+
+mainGetFile :: IO ()
+mainGetFile = do
+    theData <- readFile test_vfs
+    let theVFS = runGet VT.getVFS theData
+    let files = VT.flattenVFS theVFS
+    putStrLn "hello"
 
 main = mainGetVT

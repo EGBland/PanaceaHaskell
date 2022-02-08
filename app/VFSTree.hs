@@ -1,11 +1,13 @@
 module VFSTree (
-    VFS, getVFS, getNodeValue, flattenVFS
+    VFS, getVFS, getNodeValue, flattenVFS,
+    Header, namePred
 )
 where
 
 import Data.Binary (get, put)
 import Data.Binary.Get
 import Data.Binary.Put
+import Data.ByteString (ByteString)
 import Data.ByteString.UTF8 (toString)
 import Data.Foldable (foldrM)
 import Data.Word
@@ -29,9 +31,20 @@ instance Functor Node where
     fmap _ Tip = Tip
     fmap f (Branch left a right) = Branch (fmap f left) (f a) (fmap f right)
 
+foldMapDepthFirst :: (Monoid m) => (a -> m) -> Node a -> m
+foldMapDepthFirst _ Tip = mempty
+foldMapDepthFirst f (Branch left a right) = (f a) <> (foldMapDepthFirst f left) <> (foldMapDepthFirst f right)
+
+foldMapBreadthFirst :: (Monoid m) => (a -> m) -> Node a -> m
+foldMapBreadthFirst _ Tip = mempty
+foldMapBreadthFirst f (Branch left a right) = (f a) <> (foldMapBreadthFirst f right) <> (foldMapBreadthFirst f left)
+
+foldMapMiddle :: (Monoid m) => (a -> m) -> Node a -> m
+foldMapMiddle _ Tip = mempty
+foldMapMiddle f (Branch left a right) = (foldMapMiddle f left) <> (f a) <> (foldMapMiddle f right)
+
 instance Foldable Node where
-    foldMap f Tip = mempty
-    foldMap f (Branch left a right) = (foldMap f left) <> (f a) <> (foldMap f right)
+    foldMap = foldMapBreadthFirst
 
 getNodeValue :: Node a -> a
 getNodeValue (Branch _ a _) = a
@@ -39,6 +52,9 @@ getNodeValue (Branch _ a _) = a
 flatten :: Node a -> [a]
 flatten Tip = []
 flatten root = foldr (:) [] root
+
+nodeJoin :: Node a -> Node a -> Node a
+nodeJoin (Branch left a1 _) n2 = Branch left a1 n2
 
 -- individual header type
 data Header =
@@ -70,13 +86,34 @@ getFileCount (RootDirHeader _ fct) = fct
 getFileCount (SubDirHeader _ _ fct) = fct
 
 
+------------------- DIR STUFF -------------------
 type VFS = Node Header
 
-getVFS :: Get VFS
-getVFS = do
-    root_dir <- getRootDir
-    getDirFiles root_dir
-    
+getRootDirHeader :: Get Header
+getRootDirHeader = getWord32le >>= getRootDirHeader'
+
+getRootDirHeader' :: Word32 -> Get Header
+getRootDirHeader' 0x4331504C = do
+    subdir_ct <- getWord32le
+    file_ct   <- getWord32le
+    return (RootDirHeader subdir_ct file_ct)
+
+getSubDirHeader :: Get Header
+getSubDirHeader = do
+    name <- getVFSStr
+    subdir_ct <- getWord32le
+    file_ct <- getWord32le
+    return (SubDirHeader name subdir_ct file_ct)
+
+getRootDir :: Get VFS
+getRootDir = do
+    header <- getRootDirHeader
+    return (Branch Tip header Tip)
+
+getSubDir :: Get VFS
+getSubDir = do
+    header <- getSubDirHeader
+    return (Branch Tip header Tip)
 
 getFile :: Get VFS
 getFile = do
@@ -86,49 +123,34 @@ getFile = do
     time <- getWord64le
     return (Branch Tip (FileHeader name size off time) Tip)
 
-vfsFoldFunc :: VFS -> VFS -> VFS
-vfsFoldFunc (Branch left h1 _) h2 = Branch left h1 h2
+getVFS :: Get VFS
+getVFS = getRootDir >>= getVFS'
 
-getDirFiles :: VFS -> Get VFS
-getDirFiles (Branch _ h _) = getDirFiles' . getFileCount $ h
+getVFS' :: VFS -> Get VFS
+getVFS' (Branch _ header right) = do
+    let file_ct = getFileCount header
+    files <- sequence [getFile | x <- [1..file_ct]]
+    let subdir_ct = getSubDirCount header
+    subdirs <- sequence [ getSubDir >>= getVFS' | x <- [1..subdir_ct] ]
+    let things = files ++ subdirs
+    let left = foldr nodeJoin Tip things
+    return $ Branch left header right 
 
-getDirFiles' :: Word32 -> Get VFS
-getDirFiles' fct = do
-    files <- sequence [getFile | x <- [1..fct]] -- make strict?
-    return $ foldr vfsFoldFunc Tip files
-
-getRootDir :: Get VFS
-getRootDir = do
-    header <- getWord32le >>= getRootDir'
-    return $ Branch Tip header Tip
-
-getRootDir' :: Word32 -> Get Header
-getRootDir' 0x4331504C = do
-    subdir_ct <- getWord32le
-    file_ct   <- getWord32le
-    return (RootDirHeader subdir_ct file_ct)
-
-getDir :: Get Header
-getDir = do
-    name <- getVFSStr
-    subdir_ct <- getWord32le
-    file_ct <- getWord32le
-    return (SubDirHeader name subdir_ct file_ct)
-
-
---getSubDir :: VFS -> Get VFS
---getSubDir (Branch _ parent pr) = do
---    name      <- getVFSStr
---    subdir_ct <- getWord32le
---    file_ct   <- getWord32le
---    files <- sequence [getFile | x <- [1..file_ct]]
---    dirs <- foldrM (\_ vfs -> getSubDir vfs) Tip [1..subdir_ct]
---    let vfs = foldr vfsFoldFunc dirs files
---    return (Branch vfs parent pr)
 
 fpred :: Header -> Bool
 fpred (FileHeader _ _ _ _) = True
 fpred _ = False
 
 flattenVFS :: VFS -> [Header]
-flattenVFS = (filter fpred) . flatten
+flattenVFS = flatten
+
+readFile :: Header -> Get ByteString
+readFile (FileHeader _ size offset _) = do
+    beforeFile <- getByteString $ fromEnum offset
+    file <- getByteString $ fromEnum size
+    return file
+
+namePred :: String -> Header -> Bool
+namePred cand (FileHeader name _ _ _) = name == cand
+namePred cand (SubDirHeader name _ _) = name == cand
+namePred _ _ = False
