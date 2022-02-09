@@ -1,18 +1,25 @@
 module VFSTree (
-    VFS, getVFS, getNodeValue, flattenVFS,
-    Header, namePred, getFileData, getFileFromPath,
-    getName, split
+    Header (..), VFS,
+    getVFS, getFileData, getFileFromPath,
+    getName,
+    extractVFS
 )
 where
+
+import Prelude hiding (writeFile)
 
 import Data.Binary (get, put)
 import Data.Binary.Get
 import Data.Binary.Put
-import Data.ByteString (ByteString)
+import Data.ByteString (writeFile)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
 import Data.ByteString.UTF8 (toString)
 import Data.Foldable (foldrM)
 import Data.Maybe (fromJust, isNothing)
 import Data.Word
+import System.Directory (createDirectory)
+import Text.Printf (printf)
 
 import Tree
 
@@ -118,31 +125,36 @@ getVFS' (Branch _ header right) = do
     return $ Branch left header right 
 
 
-fpred :: Header -> Bool
-fpred (FileHeader _ _ _ _) = True
-fpred _ = False
-
-flattenVFS :: VFS -> [Header]
-flattenVFS = flatten
-
-pathResolver :: String -> Header -> Bool
-pathResolver name = (==name) . getName
-
-getFileFromPath :: String -> VFS -> Get ByteString
+getFileFromPath :: String -> VFS -> Maybe Header
 getFileFromPath path (Branch left (RootDirHeader _ _) _) = getFileFromPath path left
-getFileFromPath path root
-    | isNothing resolved = error "oh bugger"
-    | otherwise = getFileData . getNodeValue . fromJust $ resolved
-    where pathSegments = split '/' path
-          resolved     = resolveBy pathResolver pathSegments root
+getFileFromPath path root =
+    let
+        pathSegments = split '/' path
+        pathResolver :: String -> Header -> Bool
+        pathResolver name = (==name) . getName
+    in
+        getNodeValue <$> resolveBy pathResolver pathSegments root
 
-getFileData :: Header -> Get ByteString
+getFileData :: Header -> Get BS.ByteString
 getFileData (FileHeader _ size offset _) = do
     beforeFile <- getByteString $ fromEnum offset
     file <- getByteString $ fromEnum size
     return file
 
-namePred :: String -> Header -> Bool
-namePred cand (FileHeader name _ _ _) = name == cand
-namePred cand (SubDirHeader name _ _) = name == cand
-namePred _ _ = False
+extractVFS :: BSL.ByteString -> String -> VFS -> IO ()
+extractVFS vfsData path (Branch left (RootDirHeader _ _) _) = extractVFS vfsData path left
+extractVFS vfsData path (Branch left (SubDirHeader name _ _) right) =
+    do
+        let subdirPath = printf "%s/%s" path name
+        createDirectory subdirPath
+        extractVFS vfsData subdirPath left
+        extractVFS vfsData path right
+
+extractVFS vfsData path (Branch _ (FileHeader name size offset time) right) =
+    do
+        let filePath = printf "%s/%s" path name
+        let fileData = runGet (getFileData $ FileHeader name size offset time) vfsData
+        writeFile filePath fileData
+        extractVFS vfsData path right
+
+extractVFS _ _ Tip = return ()

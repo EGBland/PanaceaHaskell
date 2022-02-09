@@ -1,43 +1,42 @@
 module Main where
 
 import Prelude hiding (readFile, writeFile)
-import Control.Monad (when)
-import Data.Binary (decode, encode)
+
 import Data.Binary.Get (runGet)
 import Data.ByteString (writeFile)
-import Data.ByteString.Lazy (ByteString, readFile, hPut)
-import Data.Maybe (fromMaybe)
+import qualified Data.ByteString as BS
+import Data.ByteString.Lazy (readFile)
+import qualified Data.ByteString.Lazy as BSL
+import System.Directory (createDirectory)
+import System.FilePath (takeBaseName)
 import System.IO hiding (readFile, writeFile)
 
-import qualified VFS as V
 import qualified VFSTree as VT
-
-
-printFilesV :: ByteString -> IO ()
-printFilesV = (fromMaybe $ return ()) . (fmap $ sequence_ . (map $ putStrLn . show) . snd) . (runGet V.getVFS)
-
---printFilesVT :: ByteString -> VT.VFS
-printFilesVT = sequence_ . (map $ putStrLn . show) . VT.flattenVFS . (runGet VT.getVFS)
+import Tree
 
 test_vfs = "Textures.vfs"
-mainGetV = readFile test_vfs >>= printFilesV
-mainGetVT = readFile test_vfs >>= printFilesVT
 
-mainGetFile :: IO ()
-mainGetFile = do
-    theData <- readFile test_vfs
-    let theVFS = runGet VT.getVFS theData
-    let files = VT.flattenVFS theVFS
-    let myFile = head . (filter $ VT.namePred "ui_bint.png") $ files
-    let fileData = runGet (VT.getFileData myFile) theData
-    writeFile (VT.getName myFile) fileData
-    putStrLn . show $ myFile
+writeMaybe :: Maybe String -> Maybe BS.ByteString -> IO ()
+writeMaybe (Just path) (Just x) = writeFile path x
+writeMaybe _ _ = return ()
 
-mainResolveFile :: IO ()
-mainResolveFile = do
-    theData <- readFile test_vfs
+mainResolveFile :: String -> IO ()
+mainResolveFile path = do
+    theData <- readFile path
+    let dirName = takeBaseName path
+    putStrLn dirName
     let theVFS = runGet VT.getVFS theData
-    let theFile = runGet (VT.getFileFromPath "UI/ui_bint.png" theVFS) theData
+    let theFile = VT.getFileFromPath "UI/ui_bint.png" theVFS
+    let theFileData = flip runGet theData <$> VT.getFileData <$> theFile
+    writeMaybe (VT.getName <$> theFile) theFileData
     putStrLn . show $ theFile
 
-main = mainResolveFile
+mainExtract :: String -> IO ()
+mainExtract path = do
+    theData <- readFile path
+    let dirName = takeBaseName path
+    createDirectory dirName
+    let theVFS = runGet VT.getVFS theData
+    VT.extractVFS theData dirName theVFS
+
+main = mainExtract test_vfs

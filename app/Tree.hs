@@ -4,6 +4,8 @@ module Tree (
 )
 where
 
+import Text.Printf (printf, PrintfArg)
+
 -- tree node for file tree, with Functor and Foldable instances
 data Node a = Tip | Branch (Node a) a (Node a)
 
@@ -40,11 +42,15 @@ resolve :: (Eq a) => [a] -> Node a -> Maybe (Node a)
 resolve = resolveBy (==)
 
 resolveBy :: (a -> b -> Bool) -> [a] -> Node b -> Maybe (Node b)
-resolveBy _ _ Tip = Nothing
-resolveBy _ [] root = Just root
-resolveBy rf path root
-    | rf (head path) (getNodeValue root) = resolveBy rf (tail path) (getChild root)
-    | otherwise = resolveBy rf path $ getSibling root
+resolveBy f path root = resolveBy' f path root root
+
+resolveBy' :: (a -> b -> Bool) -> [a] -> Node b -> Node b -> Maybe (Node b)
+resolveBy' _ [] _ prev = Just prev
+resolveBy' _ _ Tip _ = Nothing
+resolveBy' _ _ _ Tip = Nothing
+resolveBy' rf path root prev
+    | rf (head path) (getNodeValue root) = resolveBy' rf (tail path) (getChild root) root
+    | otherwise = resolveBy' rf path (getSibling root) root
     where
         getChild :: Node b -> Node b
         getChild (Branch child _ _) = child

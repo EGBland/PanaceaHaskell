@@ -1,9 +1,18 @@
 module Util (
+    split,
     filesizeStr
 )
 where
 
 import Text.Printf
+
+split :: (Eq a) => a -> [a] -> [[a]]
+split _ [] = []
+split c s
+    | head s == c = split c $ tail s
+    | otherwise = [sBefore]++(split c sNext)
+    where sBefore = takeWhile (/=c) s
+          sNext = drop (length sBefore) s
 
 fstl :: Int -> String
 fstl 0 = "B"
