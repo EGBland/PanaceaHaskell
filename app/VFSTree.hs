@@ -1,7 +1,7 @@
 module VFSTree (
     VFS, getVFS, getNodeValue, flattenVFS,
     Header, namePred, getFileData, getFileFromPath,
-    getName
+    getName, split
 )
 where
 
@@ -14,11 +14,13 @@ import Data.Foldable (foldrM)
 import Data.Maybe (fromJust, isNothing)
 import Data.Word
 
+import Tree
+
 split :: (Eq a) => a -> [a] -> [[a]]
 split _ [] = []
 split c s
     | head s == c = split c $ tail s
-    | otherwise = (split c sNext)++[sBefore]
+    | otherwise = [sBefore]++(split c sNext)
     where sBefore = takeWhile (/=c) s
           sNext = drop (length sBefore) s
 
@@ -34,52 +36,6 @@ getVFSStr = do
     str <- getByteString $ fromEnum strlen
     return . toString $ str
 
--- tree node for file tree, with Functor and Foldable instances
-data Node a = Tip | Branch (Node a) a (Node a)
-
-instance Functor Node where
-    fmap _ Tip = Tip
-    fmap f (Branch left a right) = Branch (fmap f left) (f a) (fmap f right)
-
-foldMapDepthFirst :: (Monoid m) => (a -> m) -> Node a -> m
-foldMapDepthFirst _ Tip = mempty
-foldMapDepthFirst f (Branch left a right) = (f a) <> (foldMapDepthFirst f left) <> (foldMapDepthFirst f right)
-
-foldMapBreadthFirst :: (Monoid m) => (a -> m) -> Node a -> m
-foldMapBreadthFirst _ Tip = mempty
-foldMapBreadthFirst f (Branch left a right) = (f a) <> (foldMapBreadthFirst f right) <> (foldMapBreadthFirst f left)
-
-foldMapMiddle :: (Monoid m) => (a -> m) -> Node a -> m
-foldMapMiddle _ Tip = mempty
-foldMapMiddle f (Branch left a right) = (foldMapMiddle f left) <> (f a) <> (foldMapMiddle f right)
-
-instance Foldable Node where
-    foldMap = foldMapBreadthFirst
-
-getNodeValue :: Node a -> a
-getNodeValue (Branch _ a _) = a
-
-flatten :: Node a -> [a]
-flatten Tip = []
-flatten root = foldr (:) [] root
-
-nodeJoin :: Node a -> Node a -> Node a
-nodeJoin (Branch left a1 _) n2 = Branch left a1 n2
-
-resolve :: (Eq a) => [a] -> Node a -> Maybe (Node a)
-resolve = resolveBy (==)
-
-resolveBy :: (a -> b -> Bool) -> [a] -> Node b -> Maybe (Node b)
-resolveBy _ _ Tip = Nothing
-resolveBy _ [] root = Just root
-resolveBy rf path root
-    | rf (head path) (getNodeValue root) = resolveBy rf (tail path) (getChild root)
-    | otherwise = resolveBy rf path $ getSibling root
-    where
-        getChild :: Node b -> Node b
-        getChild (Branch child _ _) = child
-        getSibling :: Node b -> Node b
-        getSibling (Branch _ _ sib) = sib
 
 -- individual header type
 data Header =
@@ -154,7 +110,7 @@ getVFS = getRootDir >>= getVFS'
 getVFS' :: VFS -> Get VFS
 getVFS' (Branch _ header right) = do
     let file_ct = getFileCount header
-    files <- sequence [getFile | x <- [1..file_ct]]
+    files <- sequence [ getFile | x <- [1..file_ct] ]
     let subdir_ct = getSubDirCount header
     subdirs <- sequence [ getSubDir >>= getVFS' | x <- [1..subdir_ct] ]
     let things = files ++ subdirs
@@ -173,6 +129,7 @@ pathResolver :: String -> Header -> Bool
 pathResolver name = (==name) . getName
 
 getFileFromPath :: String -> VFS -> Get ByteString
+getFileFromPath path (Branch left (RootDirHeader _ _) _) = getFileFromPath path left
 getFileFromPath path root
     | isNothing resolved = error "oh bugger"
     | otherwise = getFileData . getNodeValue . fromJust $ resolved

@@ -32,5 +32,5 @@ executable shmowder
     build-depends:    base ^>=4.16.0.0, bytestring, binary, utf8-string
     hs-source-dirs:   app
     default-language: Haskell2010
-    other-modules: VFS, VFSTree
+    other-modules: VFS, VFSTree, Tree
     ghc-options: -O2
