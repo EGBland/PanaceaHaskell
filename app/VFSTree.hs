@@ -1,7 +1,8 @@
 module VFSTree (
     Header (..), VFS,
-    getVFS, getFileData, getFileFromPath,
-    getName,
+    getVFS, putVFS,
+    getFileData, getFileFromPath,
+    getName, countFiles,
     extractVFS
 )
 where
@@ -158,3 +159,43 @@ extractVFS vfsData path (Branch _ (FileHeader name size offset time) right) =
         extractVFS vfsData path right
 
 extractVFS _ _ Tip = return ()
+
+
+countFiles :: VFS -> (Int,Int)
+countFiles vfs =
+    let
+        f :: Header -> (Int,Int) -> (Int,Int)
+        f (RootDirHeader sdct fct) (d,f) = (d+fromEnum sdct,f+fromEnum fct)
+        f (SubDirHeader _ sdct fct) (d,f) = (d+fromEnum sdct,f+fromEnum fct)
+        f _ (d,f) = (d,f)
+    in
+        foldr f (0,0) vfs
+
+foldPut :: Header -> Put -> Put
+foldPut (RootDirHeader sdct fct) acc =
+    acc >> (
+        do
+            putWord32le 0x4331504C
+            putWord32le sdct
+            putWord32le fct
+        )
+
+foldPut (SubDirHeader name sdct fct) acc =
+    acc >> (
+        do
+            putVFSStr name
+            putWord32le sdct
+            putWord32le fct
+        )
+
+foldPut (FileHeader name size offset time) acc =
+    acc >> (
+        do
+            putVFSStr name
+            putWord32le size
+            putWord32le offset
+            putWord64le time
+        )
+
+putVFS :: VFS -> Put
+putVFS = foldl (flip foldPut) (return ())

@@ -3,18 +3,20 @@ module Main where
 import Prelude hiding (readFile, writeFile)
 
 import Data.Binary.Get (runGet)
-import Data.ByteString (writeFile)
+import Data.Binary.Put (runPut)
+import Data.ByteString (writeFile, toStrict)
 import qualified Data.ByteString as BS
 import Data.ByteString.Lazy (readFile)
 import qualified Data.ByteString.Lazy as BSL
 import System.Directory (createDirectory)
 import System.FilePath (takeBaseName)
 import System.IO hiding (readFile, writeFile)
+import Text.Printf (printf)
 
 import qualified VFSTree as VT
 import Tree
 
-test_vfs = "Textures.vfs"
+test_vfs = "Strings.vfs"
 
 writeMaybe :: Maybe String -> Maybe BS.ByteString -> IO ()
 writeMaybe (Just path) (Just x) = writeFile path x
@@ -37,6 +39,15 @@ mainExtract path = do
     let dirName = takeBaseName path
     createDirectory dirName
     let theVFS = runGet VT.getVFS theData
+    let (dct,fct) = VT.countFiles theVFS
+    putStrLn $ printf "%d subdirectories, %d files" dct fct
     VT.extractVFS theData dirName theVFS
 
-main = mainExtract test_vfs
+mainWriteTest :: String -> IO ()
+mainWriteTest path = do
+    theData <- readFile path
+    let theVFS = runGet VT.getVFS theData
+    let theHeader = runPut $ VT.putVFS theVFS
+    writeFile "header.vfs" $ toStrict theHeader
+
+main = mainWriteTest test_vfs
