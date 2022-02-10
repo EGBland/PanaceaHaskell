@@ -13,41 +13,17 @@ import System.FilePath (takeBaseName)
 import System.IO hiding (readFile, writeFile)
 import Text.Printf (printf)
 
-import qualified VFSTree as VT
+import VFS
+import VFS.Get
+import VFS.Put
 import Tree
 
-test_vfs = "Strings.vfs"
+test_vfs = "Textures.vfs"
 
-writeMaybe :: Maybe String -> Maybe BS.ByteString -> IO ()
-writeMaybe (Just path) (Just x) = writeFile path x
-writeMaybe _ _ = return ()
-
-mainResolveFile :: String -> IO ()
-mainResolveFile path = do
-    theData <- readFile path
-    let dirName = takeBaseName path
-    putStrLn dirName
-    let theVFS = runGet VT.getVFS theData
-    let theFile = VT.getFileFromPath "UI/ui_bint.png" theVFS
-    let theFileData = flip runGet theData <$> VT.getFileData <$> theFile
-    writeMaybe (VT.getName <$> theFile) theFileData
-    putStrLn . show $ theFile
-
-mainExtract :: String -> IO ()
-mainExtract path = do
-    theData <- readFile path
-    let dirName = takeBaseName path
-    createDirectory dirName
-    let theVFS = runGet VT.getVFS theData
-    let (dct,fct) = VT.countFiles theVFS
-    putStrLn $ printf "%d subdirectories, %d files" dct fct
-    VT.extractVFS theData dirName theVFS
-
-mainWriteTest :: String -> IO ()
-mainWriteTest path = do
-    theData <- readFile path
-    let theVFS = runGet VT.getVFS theData
-    let theHeader = runPut $ VT.putVFS theVFS
-    writeFile "header.vfs" $ toStrict theHeader
-
-main = mainWriteTest test_vfs
+main = do
+    vfs <- readFile test_vfs >>= (\x -> return $ runGet getVFS x)
+    let vfs2 = arrangeVFS vfs
+    putStrLn . show . getNodeValue $ vfs
+    putStrLn . show . getNodeValue $ vfs2
+    writeFile "header.vfs" $ toStrict $ runPut $ putVFS vfs
+    putStrLn "hello"

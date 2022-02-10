@@ -1,6 +1,6 @@
 module Tree (
     Node (..),
-    getNodeValue, flatten, nodeJoin, resolve, resolveBy
+    getNodeValue, flatten, nodeJoin, resolve, resolveBy, stub
 )
 where
 
@@ -30,6 +30,9 @@ instance Foldable Node where
 
 getNodeValue :: Node a -> a
 getNodeValue (Branch _ a _) = a
+
+stub :: a -> Node a
+stub a = Branch Tip a Tip
 
 flatten :: Node a -> [a]
 flatten Tip = []

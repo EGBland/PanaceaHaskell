@@ -1,4 +1,4 @@
-module Util (
+module VFS.Util (
     split,
     filesizeStr
 )
@@ -22,7 +22,7 @@ fstl 3 = "GB"
 fstl _ = "TB"
 
 filesizeStr :: (Enum a) => a -> String
-filesizeStr x = filesizeStr' (fromIntegral . fromEnum x) 0
+filesizeStr x = filesizeStr' (fromIntegral . fromEnum $ x) 0
 
 filesizeStr' :: Float -> Int -> String
 filesizeStr' b e
