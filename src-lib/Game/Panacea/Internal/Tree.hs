@@ -1,4 +1,5 @@
-module Game.Panacea.Internal.Tree ( Tree(..), left, right, resolve, resolveBy, addSibling, addChild, addSiblingTo, addChildTo, fromList, appendTreeAsSibling, concatTree ) where
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+module Game.Panacea.Internal.Tree ( Tree(..), left, right, resolve, resolveBy, addSibling, addChild, addSiblingTo, addChildTo, fromList, appendTreeAsSibling, concatTree, value ) where
 
 import Control.Applicative ( liftA2 )
 import Text.Printf ( printf )
@@ -6,7 +7,7 @@ import Text.Printf ( printf )
 data Tree a = Tip | Branch (Tree a) a (Tree a)
 
 showTree :: (Show a) => Int -> Tree a -> String
-showTree depth Tip = ""
+showTree _ Tip = ""
 showTree depth (Branch l x r) =
     let
         prefix = replicate depth '\t'
@@ -47,10 +48,10 @@ instance Traversable Tree where
 
 
 left :: Tree a -> Tree a
-left (Branch l x r) = l
+left (Branch l _ _) = l
 
 right :: Tree a -> Tree a
-right (Branch l x r) = r
+right (Branch _ _ r) = r
 
 resolve :: (Eq a) => [a] -> Tree a -> Maybe (Tree a)
 resolve = resolveBy (==)
@@ -135,3 +136,7 @@ concatTree [] = Tip
 concatTree (Tip:xs) = concatTree xs
 concatTree ((Branch l x Tip):xs) = Branch l x (concatTree xs)
 concatTree ((Branch l x r):xs) = Branch l x (concatTree (r:xs))
+
+value :: Tree a -> Maybe a
+value Tip = Nothing
+value (Branch _ x _) = Just x

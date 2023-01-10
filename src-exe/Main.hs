@@ -5,4 +5,4 @@ import qualified Data.ByteString.Lazy as BSL
 import Game.Panacea.VFS.Get
 
 main :: IO ()
-main = BSL.readFile "Strings.vfs" >>= print . runGet getVFS
+main = BSL.readFile "Textures.vfs" >>= print . runGet getVFS

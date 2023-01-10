@@ -1,8 +1,9 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
-module Game.Panacea.VFS ( Header(..), VFS, name, subdirCount, fileCount ) where
+module Game.Panacea.VFS ( Header(..), VFS, empty, value, name, subdirCount, fileCount ) where
 
 import Data.Word ( Word32, Word64 )
-import Game.Panacea.Internal.Tree
+import Game.Panacea.Internal.Tree hiding ( value )
+import qualified Game.Panacea.Internal.Tree as T
 
 data Header = RootDirHeader !Word32 !Word32 
             | SubDirHeader  !String !Word32 !Word32
@@ -10,6 +11,12 @@ data Header = RootDirHeader !Word32 !Word32
             deriving (Show, Eq, Read)
 
 type VFS = Tree Header
+
+empty :: VFS
+empty = Tip
+
+value :: VFS -> Maybe Header
+value = T.value
 
 name :: Header -> String
 name (RootDirHeader _ _) = "<root>"

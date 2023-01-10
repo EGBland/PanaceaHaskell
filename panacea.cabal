@@ -62,10 +62,10 @@ library
     import:           warnings
 
     -- Modules exported by the library.
-    exposed-modules:  Game.Panacea.VFS, Game.Panacea.VFS.Get
+    exposed-modules:  Game.Panacea.VFS, Game.Panacea.VFS.Get, Game.Panacea.Internal.Tree
 
     -- Modules included in this library but not exported.
-    other-modules: Game.Panacea.Internal.Tree
+    -- other-modules: Game.Panacea.Internal.Tree
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -131,5 +131,8 @@ test-suite Panacea-test
 
     -- Test dependencies.
     build-depends:
-        base ^>=4.16.4.0,
-        panacea
+        base ^>=4.16.4.0
+      , panacea
+      , HUnit
+      , bytestring
+      , binary
