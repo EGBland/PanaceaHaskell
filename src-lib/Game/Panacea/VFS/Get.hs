@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use <$>" #-}
-module Game.Panacea.VFS.Get ( getVFS ) where
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+module Game.Panacea.VFS.Get ( getVFS, getFileData ) where
 
 import Control.Monad ( guard, replicateM )
 import Data.Binary.Get ( getWord32le, getWord64le, getWord8, getByteString, Get )
@@ -33,6 +34,13 @@ getFile = do
     offset <- getWord32le
     lastModifiedTime <- getWord64le
     return $ FileHeader name size offset lastModifiedTime
+
+getFileData :: Header -> Get Header
+getFileData (FileHeader name size offset lastModifiedTime) = do
+    _ <- getByteString . fromEnum $ offset
+    fileData <- getByteString . fromEnum $ size
+    return $ FileHeaderFull name size offset lastModifiedTime fileData
+    
 
 getVFS :: Get VFS
 getVFS = getRootDir >>= getVFSDir

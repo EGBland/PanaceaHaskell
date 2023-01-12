@@ -75,6 +75,7 @@ library
                     , bytestring
                     , binary
                     , utf8-string
+                    , split
 
     -- Directories containing source files.
     hs-source-dirs:   src-lib
