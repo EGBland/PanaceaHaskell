@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
-module Game.Panacea.VFS ( Header(..), VFS, empty, value, name, subdirCount, fileCount, fileData, resolve ) where
+module Game.Panacea.VFS ( Header(..), VFS, allPaths, allFiles, empty, value, name, subdirCount, fileCount, fileData, resolve, isFile, isDir ) where
 
 import qualified Data.ByteString as BS
 import Data.List.Split ( splitOn )
@@ -38,6 +38,24 @@ fileCount (SubDirHeader _ _ numFiles) = numFiles
 fileData :: Header -> BS.ByteString
 fileData (FileHeaderFull _ _ _ _ theData) = theData
 
+isFile :: Header -> Bool
+isFile (FileHeader {}) = True
+isFile (FileHeaderFull {}) = True
+isFile _ = False
+
+isDir :: Header -> Bool
+isDir = not . isFile
+
 
 resolve :: String -> VFS -> Maybe Header
 resolve stringPath vfs = T.resolveBy (\ele header -> (==ele) . name $ header) (splitOn "/" stringPath) (left vfs) >>= T.value
+
+allFiles :: VFS -> [([String],Header)]
+allFiles = filter (isFile . snd) . allPaths
+
+allPaths :: VFS -> [([String],Header)]
+allPaths = allPaths' [] . left
+
+allPaths' :: [String] -> VFS -> [([String],Header)]
+allPaths' _ Tip = []
+allPaths' parent (Branch l x r) = (parent,x):(allPaths' (parent++[name x]) l ++ allPaths' parent r)

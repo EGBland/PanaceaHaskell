@@ -1,23 +1,31 @@
 module Main where
 
-import Data.Binary.Get ( Get, runGet )
-import qualified Data.ByteString as BS
+import Data.Binary.Get ( runGet )
 import qualified Data.ByteString.Lazy as BSL
-import Game.Panacea.VFS.Get
-import Game.Panacea.VFS ( resolve, fileData )
-
-runMaybeGet :: Maybe (Get a) -> BSL.ByteString -> Maybe a
-runMaybeGet (Just g) bs = Just $ runGet g bs
-runMaybeGet Nothing _ = Nothing
+import Game.Panacea ( unpackVFS )
+import Game.Panacea.VFS.Get ( getVFS )
+import System.Directory ( createDirectoryIfMissing, doesFileExist )
+import System.Environment ( getArgs )
+import Text.Printf ( printf )
 
 main :: IO ()
-main = do
-    vfsData <- BSL.readFile "Textures.vfs"
-    let vfs = runGet getVFS vfsData
-    print vfs
-    let resolveResult = resolve "UI/NPC_Rubin_b.png" vfs
-    let theGet = getFileData <$> resolveResult
-    let theResult = runMaybeGet theGet vfsData
-    case theResult of
-        Just x -> BS.writeFile "result.png" . fileData $ x
-        Nothing -> return ()
+main = getArgs >>= parseArgs
+
+parseArgs :: [String] -> IO ()
+parseArgs [] = putStrLn "Usage: panacea <VFS name to unpack>"
+parseArgs (x:_) = unpack x
+
+unpack :: String -> IO ()
+unpack name = do
+    let vfsFileName = printf "%s.vfs" name :: String
+    vfsExists <- doesFileExist vfsFileName
+    if
+        vfsExists
+    then do
+        vfsData <- BSL.readFile vfsFileName
+        let vfs = runGet getVFS vfsData
+        print vfs
+        createDirectoryIfMissing True name
+        unpackVFS vfsData name vfs
+    else
+        putStrLn $ printf "File \"%s\" does not exist. Check your path is correct, and ensure you do not affix \".vfs\" to the entered file name." vfsFileName
