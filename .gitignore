@@ -1,2 +1,6 @@
 dist-newstyle/
 *.vfs
+*.sh
+*.dat
+*.txt
+*.csv

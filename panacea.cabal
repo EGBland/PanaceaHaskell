@@ -62,7 +62,12 @@ library
     import:           warnings
 
     -- Modules exported by the library.
-    exposed-modules:  Game.Panacea, Game.Panacea.VFS, Game.Panacea.VFS.Get
+    exposed-modules:  Game.Panacea
+                    , Game.Panacea.Strings
+                    , Game.Panacea.Strings.Get
+                    , Game.Panacea.Strings.Put
+                    , Game.Panacea.VFS
+                    , Game.Panacea.VFS.Get
 
     -- Modules included in this library but not exported.
     other-modules: Game.Panacea.Internal.Tree
@@ -77,6 +82,8 @@ library
                     , utf8-string
                     , split
                     , directory
+                    , text
+                    , cassava
 
     -- Directories containing source files.
     hs-source-dirs:   src-lib
@@ -92,7 +99,7 @@ executable Panacea
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    -- other-modules:
+    --other-modules: 
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -103,6 +110,9 @@ executable Panacea
                  , bytestring
                  , binary
                  , directory
+                 , text
+                 , cassava
+                 , vector
 
     -- Directories containing source files.
     hs-source-dirs:   src-exe
