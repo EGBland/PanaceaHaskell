@@ -7,17 +7,30 @@ import Data.Binary.Put ( runPut )
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Csv as CSV
 import qualified Data.Vector as V
-import Game.Panacea ( unpackVFS )
+import Game.Panacea ( unpackVFS, unpackVFS2 )
 import Game.Panacea.Strings ( StringRecord )
 import Game.Panacea.Strings.Get ( getStrings )
 import Game.Panacea.Strings.Put ( putStrings )
 import Game.Panacea.VFS.Get ( getVFS )
+import Game.Panacea.VFS.Writer ( asRegions )
 import System.Directory ( createDirectoryIfMissing, doesFileExist )
 import System.Environment ( getArgs, getProgName )
 import Text.Printf ( printf )
 
 main :: IO ()
-main = getArgs >>= parseArgs
+main = mainProper
+
+mainScratch :: IO ()
+mainScratch = do
+    vfsData <- BSL.readFile "Strings.vfs"
+    let vfs = runGet getVFS vfsData
+    print vfs
+    let regions = asRegions vfs
+    print regions
+    unpackVFS2 vfsData "Strings" vfs
+
+mainProper :: IO ()
+mainProper = getArgs >>= parseArgs
 
 parseArgs :: [String] -> IO ()
 parseArgs ("--unpack-vfs":xs) = parseVFSToUnpack xs
@@ -51,7 +64,7 @@ doUnpackVFS name = do
         let vfs = runGet getVFS vfsData
         print vfs
         createDirectoryIfMissing True name
-        unpackVFS vfsData name vfs
+        unpackVFS2 vfsData name vfs
     else
         putStrLn $ printf "File \"%s\" does not exist. Check your path is correct, and ensure you do not affix \".vfs\" to the entered file name." vfsFileName
 

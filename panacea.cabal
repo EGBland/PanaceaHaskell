@@ -68,6 +68,7 @@ library
                     , Game.Panacea.Strings.Put
                     , Game.Panacea.VFS
                     , Game.Panacea.VFS.Get
+                    , Game.Panacea.VFS.Writer
 
     -- Modules included in this library but not exported.
     other-modules: Game.Panacea.Internal.Tree
